@@ -6,6 +6,13 @@ Agent-native CLI for [topcal](https://topcal.ai) — browser device auth, calend
 
 ```bash
 npm install -g @topcal/cli
+topcal --help
+```
+
+Without a global install, call the binary by name (scoped packages need `-p`):
+
+```bash
+npx --yes -p @topcal/cli topcal --help
 ```
 
 Or paste into your agent:
