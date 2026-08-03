@@ -1,0 +1,57 @@
+{
+  "name": "@topcal/cli",
+  "version": "0.1.1",
+  "description": "Agent-native CLI for topcal — device auth, calendar connect, booking, MCP.",
+  "license": "UNLICENSED",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "topcal": "bin/topcal.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bcharleson/topcal-cli.git"
+  },
+  "homepage": "https://topcal.ai/skill/SKILL.md",
+  "bugs": {
+    "url": "https://github.com/bcharleson/topcal-cli/issues"
+  },
+  "keywords": [
+    "topcal",
+    "calendar",
+    "scheduling",
+    "cli",
+    "agents",
+    "mcp"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js",
+    "prepublishOnly": "pnpm build && pnpm test"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5",
+    "vitest": "^4.1.4"
+  }
+}
