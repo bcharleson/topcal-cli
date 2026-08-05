@@ -56,7 +56,7 @@ export interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-const USER_AGENT = "topcal-cli/0.1.0";
+const USER_AGENT = "topcal-cli";
 
 export class ApiClient {
   private readonly opts: ApiClientOptions;

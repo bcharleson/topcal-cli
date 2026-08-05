@@ -12,6 +12,7 @@ import { registerOpenApiCommand } from "./commands/openapi.js";
 import { registerUserCommands } from "./commands/user.js";
 import { TopcalApiError } from "./http.js";
 import { createOutput } from "./output.js";
+import { packageVersion } from "./version.js";
 
 /**
  * `topcal` — the agent-native CLI.
@@ -34,7 +35,7 @@ const program = new Command();
 program
   .name("topcal")
   .description("Agent-native CLI for topcal — verify identities, run sign-ups, drive Stripe checkout, probe MCP.")
-  .version("0.1.0");
+  .version(packageVersion());
 
 registerAuthCommands(program);
 registerCalendarCommands(program);

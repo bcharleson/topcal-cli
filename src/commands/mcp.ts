@@ -3,6 +3,7 @@ import type { Command } from "commander";
 import { loadConfig } from "../config.js";
 import { ApiClient } from "../http.js";
 import { createOutput } from "../output.js";
+import { packageVersion } from "../version.js";
 
 interface JsonRpcResponse<T> {
   jsonrpc: "2.0";
@@ -66,7 +67,7 @@ export function registerMcpCommand(program: Command): void {
           params: {
             protocolVersion: "2025-06-18",
             capabilities: {},
-            clientInfo: { name: "topcal-cli", version: "0.1.0" },
+            clientInfo: { name: "topcal-cli", version: packageVersion() },
           },
         },
       });
