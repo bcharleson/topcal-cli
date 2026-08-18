@@ -44,8 +44,20 @@ describe("CLI config store", () => {
   it("returns the default API URL when no file or env is set", () => {
     expect(configPath()).toBe(tempPath);
     const cfg = loadConfig();
-    expect(cfg.apiUrl).toBe("http://localhost:3000");
+    expect(cfg.apiUrl).toBe("https://app.topcal.ai");
     expect(cfg.apiKey).toBeUndefined();
+  });
+
+  it("moves legacy topcal.app API URLs to app.topcal.ai", () => {
+    saveConfig({ apiUrl: "https://topcal.app", apiKey: "tofu_test_key" });
+    const cfg = loadConfig();
+    expect(cfg.apiUrl).toBe("https://app.topcal.ai");
+  });
+
+  it("keeps localhost for local development", () => {
+    process.env.TOPCAL_API_URL = "http://localhost:3000";
+    const cfg = loadConfig();
+    expect(cfg.apiUrl).toBe("http://localhost:3000");
   });
 
   it("env vars override file values", () => {
@@ -108,7 +120,7 @@ describe("CLI config store", () => {
     saveConfig({ apiUrl: "https://book.example.com", apiKey: "tofu_test" });
     writeFileSync(tempPath, "{not json", "utf8");
     const cfg = loadConfig();
-    expect(cfg.apiUrl).toBe("http://localhost:3000");
+    expect(cfg.apiUrl).toBe("https://app.topcal.ai");
     expect(cfg.apiKey).toBeUndefined();
   });
 

@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
  */
 
 export interface CliConfig {
-  /** Base URL of the topcal API, e.g. `https://topcal.app`. */
+  /** Base URL of the topcal API, e.g. `https://app.topcal.ai`. */
   apiUrl: string;
   /** Workspace API key (`tofu_(live|test)_...`). Optional for `health` etc. */
   apiKey?: string | undefined;
@@ -36,7 +36,21 @@ export interface CliConfig {
   pendingUserCode?: string | undefined;
 }
 
-const DEFAULT_API_URL = "http://localhost:3000";
+const DEFAULT_API_URL = "https://app.topcal.ai";
+const LEGACY_API_HOSTS = new Set(["topcal.app", "www.topcal.app"]);
+
+export function canonicalApiUrl(url: string): string {
+  const trimmed = url.trim().replace(/\/+$/, "");
+  try {
+    const parsed = new URL(trimmed);
+    if (LEGACY_API_HOSTS.has(parsed.hostname.toLowerCase())) {
+      return "https://app.topcal.ai";
+    }
+    return parsed.origin;
+  } catch {
+    return trimmed || DEFAULT_API_URL;
+  }
+}
 
 export function configPath(): string {
   return process.env.TOPCAL_CONFIG_PATH ?? join(homedir(), ".topcal", "config.json");
@@ -54,10 +68,11 @@ export function loadConfig(): CliConfig {
   }
 
   const merged: CliConfig = {
-    apiUrl:
+    apiUrl: canonicalApiUrl(
       process.env.TOPCAL_API_URL?.trim() ||
-      fileConfig.apiUrl?.trim() ||
-      DEFAULT_API_URL,
+        fileConfig.apiUrl?.trim() ||
+        DEFAULT_API_URL,
+    ),
     apiKey: process.env.TOPCAL_API_KEY?.trim() || fileConfig.apiKey,
     intentToken:
       process.env.TOPCAL_AGENT_INTENT?.trim() || fileConfig.intentToken,
@@ -96,7 +111,9 @@ export function saveConfig(patch: Partial<CliConfig>): CliConfig {
   }
 
   const next: CliConfig = {
-    apiUrl: patch.apiUrl ?? current.apiUrl ?? DEFAULT_API_URL,
+    apiUrl: canonicalApiUrl(
+      patch.apiUrl ?? current.apiUrl ?? DEFAULT_API_URL,
+    ),
     apiKey: patch.apiKey ?? current.apiKey,
     intentToken: patch.intentToken ?? current.intentToken,
     intentExpiresAt: patch.intentExpiresAt ?? current.intentExpiresAt,
