@@ -27,20 +27,47 @@ interface McpToolDescriptor {
  * — we don't need a full MCP client because we're only invoking
  * `initialize` + `tools/list` once.
  */
+function resolveMcpTarget(
+  apiUrl: string,
+  override: string,
+): { origin: string; basePath: string; path: string } {
+  if (override) {
+    const url = new URL(override);
+    return { origin: url.origin, basePath: "", path: url.pathname || "/mcp" };
+  }
+  return {
+    origin: apiUrl.replace(/\/+$/, ""),
+    basePath: "/api/mcp",
+    path: "/mcp",
+  };
+}
+
 export function registerMcpCommand(program: Command): void {
   const mcp = program.command("mcp").description("Probe and inspect the topcal MCP server.");
 
   mcp
     .command("probe")
-    .description("Connect to /api/mcp/mcp, list tools, and report parity with the OpenAPI spec.")
+    .description("Connect to an MCP endpoint, list tools, and report parity with the OpenAPI spec.")
+    .option(
+      "--url <url>",
+      "MCP origin (default: TOPCAL_MCP_URL or {apiUrl}/api/mcp/mcp)",
+    )
     .option("--json", "Output machine-readable JSON")
-    .action(async (opts: { json?: boolean }) => {
+    .action(async (opts: { url?: string; json?: boolean }) => {
       const out = createOutput({ json: !!opts.json });
       const cfg = loadConfig();
-      const client = new ApiClient({
-        apiUrl: cfg.apiUrl,
+      const mcpTarget = resolveMcpTarget(
+        cfg.apiUrl,
+        opts.url?.trim() || process.env.TOPCAL_MCP_URL?.trim() || "",
+      );
+      const mcpClient = new ApiClient({
+        apiUrl: mcpTarget.origin,
         ...(cfg.apiKey ? { apiKey: cfg.apiKey } : {}),
         ...(cfg.intentToken ? { intentToken: cfg.intentToken } : {}),
+      });
+      const apiClient = new ApiClient({
+        apiUrl: cfg.apiUrl,
+        ...(cfg.apiKey ? { apiKey: cfg.apiKey } : {}),
       });
 
       // The MCP Streamable-HTTP transport requires the client to accept
@@ -54,10 +81,10 @@ export function registerMcpCommand(program: Command): void {
       };
 
       // 1. Initialize.
-      const init = await client.request<JsonRpcResponse<unknown>>({
+      const init = await mcpClient.request<JsonRpcResponse<unknown>>({
         method: "POST",
-        basePath: "/api/mcp",
-        path: "/mcp",
+        basePath: mcpTarget.basePath,
+        path: mcpTarget.path,
         accept: MCP_ACCEPT,
         onResponseHeaders: captureSession,
         body: {
@@ -77,10 +104,10 @@ export function registerMcpCommand(program: Command): void {
       }
 
       // 2. List tools (carry the session id if the server issued one).
-      const list = await client.request<JsonRpcResponse<{ tools: McpToolDescriptor[] }>>({
+      const list = await mcpClient.request<JsonRpcResponse<{ tools: McpToolDescriptor[] }>>({
         method: "POST",
-        basePath: "/api/mcp",
-        path: "/mcp",
+        basePath: mcpTarget.basePath,
+        path: mcpTarget.path,
         accept: MCP_ACCEPT,
         ...(sessionId ? { headers: { "mcp-session-id": sessionId } } : {}),
         body: { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
@@ -92,7 +119,7 @@ export function registerMcpCommand(program: Command): void {
       const tools = list.result.tools;
 
       // 3. Pull operationIds out of OpenAPI for parity reporting.
-      const spec = await client.request<{ paths: Record<string, Record<string, { operationId?: string }>> }>({
+      const spec = await apiClient.request<{ paths: Record<string, Record<string, { operationId?: string }>> }>({
         path: "/openapi",
         skipAuth: true,
       });
