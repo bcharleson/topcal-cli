@@ -34,76 +34,7 @@ export function registerCalendarCommands(program: Command): void {
         timeout?: string;
         json?: boolean;
       }) => {
-        const out = createOutput({ json: !!opts.json });
-        const cfg = loadConfig();
-        if (!cfg.apiKey) {
-          out.error("Not connected. Run: topcal auth register");
-          process.exit(1);
-        }
-        const provider = (opts.provider ?? "google").toLowerCase();
-        if (provider !== "google" && provider !== "microsoft") {
-          out.error("--provider must be google or microsoft");
-          process.exit(1);
-        }
-
-        const client = new ApiClient({
-          apiUrl: cfg.apiUrl,
-          apiKey: cfg.apiKey,
-        });
-
-        const before = await client.request<{ calendars: CalendarRow[] }>({
-          path: "/cli/calendars",
-        });
-        const beforeIds = new Set(before.calendars.map((c) => c.id));
-
-        const minted = await client.request<{
-          installUrl: string;
-          expiresAt: string;
-          targetUser: { id: string; email: string };
-          instructions: string;
-        }>({
-          method: "POST",
-          path: "/cli/calendars/connect",
-          body: { provider },
-        });
-
-        out.ok(`Connect ${provider} as ${minted.targetUser.email}`);
-        out.note(minted.installUrl);
-        openUrl(minted.installUrl);
-
-        if (opts.wait === false) {
-          out.json(minted);
-          return;
-        }
-
-        const timeoutMs =
-          (Number.parseInt(opts.timeout ?? "300", 10) || 300) * 1000;
-        const deadline = Date.now() + timeoutMs;
-        while (Date.now() < deadline) {
-          await sleep(2000);
-          const listed = await client.request<{ calendars: CalendarRow[] }>({
-            path: "/cli/calendars",
-          });
-          const next = listed.calendars.find(
-            (c) =>
-              !beforeIds.has(c.id) &&
-              c.provider === provider &&
-              c.seatStatus === "active",
-          );
-          const anyActive = listed.calendars.find(
-            (c) => c.provider === provider && c.seatStatus === "active",
-          );
-          const found = next ?? (beforeIds.size === 0 ? anyActive : undefined);
-          if (found) {
-            out.ok(
-              `Calendar connected: ${found.email} (${found.provider}, ${found.seatStatus})`,
-            );
-            out.json({ ok: true, calendar: found, calendars: listed.calendars });
-            return;
-          }
-        }
-        out.error("Timed out waiting for calendar connect. Re-run topcal calendars status.");
-        process.exit(1);
+        await runCalendarsConnect(opts);
       },
     );
 
@@ -141,6 +72,89 @@ export function registerCalendarCommands(program: Command): void {
         }
       }
     });
+}
+
+export async function runCalendarsConnect(opts: {
+  provider?: string;
+  wait?: boolean;
+  timeout?: string;
+  json?: boolean;
+}): Promise<void> {
+  const out = createOutput({ json: !!opts.json });
+  const cfg = loadConfig();
+  if (!cfg.apiKey) {
+    out.error("Not connected. Run: topcal setup   or   topcal auth register");
+    process.exit(1);
+  }
+  const provider = (opts.provider ?? "google").toLowerCase();
+  if (provider !== "google" && provider !== "microsoft") {
+    out.error("--provider must be google or microsoft");
+    process.exit(1);
+  }
+
+  const client = new ApiClient({
+    apiUrl: cfg.apiUrl,
+    apiKey: cfg.apiKey,
+  });
+
+  const before = await client.request<{ calendars: CalendarRow[] }>({
+    path: "/cli/calendars",
+  });
+  const beforeIds = new Set(before.calendars.map((c) => c.id));
+
+  const minted = await client.request<{
+    installUrl: string;
+    expiresAt: string;
+    targetUser: { id: string; email: string };
+    instructions: string;
+  }>({
+    method: "POST",
+    path: "/cli/calendars/connect",
+    body: { provider },
+  });
+
+  out.ok(`Connect ${provider} as ${minted.targetUser.email}`);
+  out.note(minted.installUrl);
+  out.note("Human step: finish Google/Microsoft consent in the browser.");
+  openUrl(minted.installUrl);
+
+  if (opts.wait === false) {
+    out.json({
+      ok: true,
+      waiting: true,
+      human: "Complete calendar OAuth in the browser.",
+      ...minted,
+    });
+    return;
+  }
+
+  const timeoutMs = (Number.parseInt(opts.timeout ?? "300", 10) || 300) * 1000;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await sleep(2000);
+    const listed = await client.request<{ calendars: CalendarRow[] }>({
+      path: "/cli/calendars",
+    });
+    const next = listed.calendars.find(
+      (c) =>
+        !beforeIds.has(c.id) &&
+        c.provider === provider &&
+        c.seatStatus === "active",
+    );
+    const anyActive = listed.calendars.find(
+      (c) => c.provider === provider && c.seatStatus === "active",
+    );
+    const found = next ?? (beforeIds.size === 0 ? anyActive : undefined);
+    if (found) {
+      out.ok(
+        `Calendar connected: ${found.email} (${found.provider}, ${found.seatStatus})`,
+      );
+      out.json({ ok: true, calendar: found, calendars: listed.calendars });
+      return;
+    }
+  }
+  out.error("Timed out waiting for calendar connect. Re-run topcal calendars status.");
+  process.exit(1);
 }
 
 function sleep(ms: number): Promise<void> {
