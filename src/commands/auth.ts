@@ -111,7 +111,7 @@ export function registerAuthCommands(program: Command): void {
     });
 }
 
-async function runRegister(opts: RegisterOptions): Promise<void> {
+export async function runRegister(opts: RegisterOptions): Promise<void> {
   const out = createOutput({ json: !!opts.json });
   const current = loadConfig();
   const apiUrl = (opts.url?.trim() || current.apiUrl).replace(/\/$/, "");
@@ -142,6 +142,9 @@ async function runRegister(opts: RegisterOptions): Promise<void> {
 
   out.ok(`User code: ${registered.userCode}`);
   out.note(`Open: ${registered.verificationUrl}`);
+  out.note(
+    "Human steps: sign up or sign in, confirm email if asked, pick a workspace, Allow CLI access.",
+  );
   const opened = openUrl(registered.verificationUrl);
   if (!opened) {
     out.warn("Could not open a browser — paste the URL above manually.");

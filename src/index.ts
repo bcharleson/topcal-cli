@@ -9,6 +9,8 @@ import { registerBookingCommands } from "./commands/booking.js";
 import { registerIdentityCommands } from "./commands/identity.js";
 import { registerMcpCommand } from "./commands/mcp.js";
 import { registerOpenApiCommand } from "./commands/openapi.js";
+import { registerSetupCommand } from "./commands/setup.js";
+import { registerToolsCommands } from "./commands/tools.js";
 import { registerUserCommands } from "./commands/user.js";
 import { TopcalApiError } from "./http.js";
 import { createOutput } from "./output.js";
@@ -34,11 +36,15 @@ const program = new Command();
 
 program
   .name("topcal")
-  .description("Agent-native CLI for topcal — verify identities, run sign-ups, drive Stripe checkout, probe MCP.")
+  .description(
+    "Agent-native CLI for topcal — same workspace catalog as MCP. Start with: topcal setup",
+  )
   .version(packageVersion());
 
+registerSetupCommand(program);
 registerAuthCommands(program);
 registerCalendarCommands(program);
+registerToolsCommands(program);
 registerOpenApiCommand(program);
 registerIdentityCommands(program);
 registerUserCommands(program);

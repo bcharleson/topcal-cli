@@ -1,35 +1,31 @@
 # @topcal/cli
 
-Agent-native CLI for [topcal](https://topcal.ai) — device auth, calendars, booking, billing, enrichment, and MCP probe.
+Agent-native CLI for [topcal](https://topcal.ai) — same workspace catalog as the hosted MCP. Thin client over **app.topcal.ai** REST only.
 
-Thin client over **app.topcal.ai** REST only. Product logic stays in [topcal-app](https://github.com/bcharleson/topcal-app). Remote MCP for ChatGPT / Claude / Grok connectors lives in [topcal-mcp](https://github.com/bcharleson/topcal-mcp).
+Any AI agent can install it, walk a human through signup + email confirm + calendar OAuth, then run every dashboard action as tools.
 
-## Install
-
-```bash
-npm install -g @topcal/cli
-topcal --help
-```
-
-Without a global install (scoped packages need `-p`):
+## Install (any agent)
 
 ```bash
-npx --yes -p @topcal/cli topcal --help
+npx --yes -p @topcal/cli topcal setup --json
 ```
 
-Or paste into your agent:
+That opens a browser. The human: **sign up or sign in → confirm email if asked → Allow CLI access → connect Google/Microsoft**. The CLI waits and stores a workspace API key in `~/.topcal/config.json`.
+
+Or paste:
 
 ```text
 Set up topcal from https://topcal.ai/skill/SKILL.md
+Then run: npx --yes -p @topcal/cli topcal setup --json
 ```
 
-## Quick start
+## Quick start (already have an account)
 
 ```bash
 topcal auth register --wait auto
-topcal auth status
 topcal calendars connect --provider google
-topcal calendars status
+topcal tools list --json
+topcal tools call get_workspace --json
 ```
 
 Credentials: `~/.topcal/config.json` (mode `0600`). Override with `TOPCAL_API_URL`, `TOPCAL_API_KEY`, `TOPCAL_AGENT_INTENT`.
@@ -38,6 +34,12 @@ Credentials: `~/.topcal/config.json` (mode `0600`). Override with `TOPCAL_API_UR
 
 | Command | Purpose |
 |---------|---------|
+| `topcal setup` | Agent install: signup/login + calendar connect |
+| `topcal tools list` | Full workspace catalog (same as MCP / Cal Agent) |
+| `topcal tools call <name>` | Run any catalog tool (`--args '{...}'`) |
+| `topcal buy` / `billing checkout` | Mint Stripe Checkout URL for this workspace |
+| `topcal billing wait` | Poll until planState is `active` |
+| `topcal billing status` | Plan, trial days, seats |
 | `topcal auth register` | Browser approve → save API key |
 | `topcal auth wait` | Finish a `--wait no` register |
 | `topcal auth status` | Connection + workspace |
@@ -63,7 +65,9 @@ Credentials: `~/.topcal/config.json` (mode `0600`). Override with `TOPCAL_API_UR
 
 Every command accepts `--json` for agents/CI.
 
-`topcal mcp probe` talks to the **in-app** MCP (`/api/mcp/mcp`) until the standalone host is the default. Override with `--url`.
+`topcal mcp probe` defaults to the in-app MCP (`/api/mcp/mcp`). For the hosted connector: `topcal mcp probe --url https://mcp.topcal.ai/mcp`.
+
+`topcal tools *` is the full product surface (calendars, event types, meetings, availability, members, teams, billing). Named commands (`event-types`, `book`, `identity`, …) stay as shortcuts.
 
 ## Links
 
