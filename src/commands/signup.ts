@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 
-import { loadConfig, saveConfig } from "../config.js";
+import { configPath, loadConfig, saveConfig } from "../config.js";
 import { ApiClient } from "../http.js";
 import { createOutput } from "../output.js";
 import { clean } from "./public-booking.js";
@@ -64,9 +64,43 @@ function storeSignedIn(result: SignedIn): void {
   });
 }
 
-/** Never print a full key in human output; JSON callers asked for the data. */
+/** First characters only — enough to recognise a key, useless to steal. */
 function keyPreview(key: string): string {
   return `${key.slice(0, 16)}…`;
+}
+
+/**
+ * What we print after a sign-in. The key is saved to the config file and is
+ * NOT echoed: stdout ends up in agent transcripts and shell logs. Pass
+ * `--show-key` to print it deliberately.
+ */
+export function printableSignIn(
+  result: SignedIn,
+  showKey: boolean,
+): Record<string, unknown> {
+  return {
+    ...result,
+    apiKey: showKey ? result.apiKey : keyPreview(result.apiKey),
+    apiKeyRedacted: !showKey,
+    saved: true,
+    savedTo: configPath(),
+  };
+}
+
+/** Same for a pending approval: the poll token redeems the seat key. */
+export function printablePending(
+  result: PendingClaim,
+  showKey: boolean,
+): Record<string, unknown> {
+  const { pollToken, ...rest } = result;
+  return {
+    ...rest,
+    ...(pollToken
+      ? showKey
+        ? { pollToken }
+        : { pollTokenSaved: true, savedTo: configPath() }
+      : {}),
+  };
 }
 
 function client(): ApiClient {
@@ -84,12 +118,14 @@ interface VerifyOpts {
   code: string;
   challenge?: string;
   agentName?: string;
+  showKey?: boolean;
   json?: boolean;
 }
 interface PollOpts {
   pollToken?: string;
   wait?: boolean;
   timeout?: string;
+  showKey?: boolean;
   json?: boolean;
 }
 
@@ -136,6 +172,7 @@ export function registerSignupCommands(program: Command): void {
     .requiredOption("--code <code>", "The 6-digit code from the inbox")
     .option("--challenge <id>", "challengeId from `signup start` (defaults to the last one)")
     .option("--agent-name <name>", "How you appear to the human and in the audit log")
+    .option("--show-key", "Print the full API key / poll token (they are saved to the config file either way)")
     .option("--json", "Output machine-readable JSON")
     .action(async (opts: VerifyOpts) => {
       const out = createOutput({ json: !!opts.json });
@@ -157,7 +194,7 @@ export function registerSignupCommands(program: Command): void {
       const outcome = interpretVerify(body);
       if (outcome.kind === "signed_in") {
         storeSignedIn(outcome.result);
-        out.json({ ...outcome.result, saved: true });
+        out.json(printableSignIn(outcome.result, !!opts.showKey));
         if (!opts.json) {
           out.ok(`Signed in to ${clean(outcome.result.workspace.name)}. Key saved (${keyPreview(outcome.result.apiKey)}).`);
           out.note("Next: topcal calendars connect");
@@ -168,7 +205,7 @@ export function registerSignupCommands(program: Command): void {
         pendingChallengeId: "",
         pendingClaimPollToken: outcome.result.pollToken ?? "",
       });
-      out.json(outcome.result);
+      out.json(printablePending(outcome.result, !!opts.showKey));
       if (!opts.json) {
         out.ok(`Waiting for ${clean(outcome.result.claimSentTo)} to approve.`);
         out.note("They got an email with a link: open it, review, press Approve.");
@@ -182,6 +219,7 @@ export function registerSignupCommands(program: Command): void {
     .option("--poll-token <token>", "pollToken from `signup verify` (defaults to the saved one)")
     .option("--wait", "Keep checking until approved or --timeout")
     .option("--timeout <seconds>", "Max seconds to wait with --wait", "600")
+    .option("--show-key", "Print the full API key (it is saved to the config file either way)")
     .option("--json", "Output machine-readable JSON")
     .action(async (opts: PollOpts) => {
       const out = createOutput({ json: !!opts.json });
@@ -201,7 +239,7 @@ export function registerSignupCommands(program: Command): void {
         const outcome = interpretVerify(body);
         if (outcome.kind === "signed_in") {
           storeSignedIn(outcome.result);
-          out.json({ ...outcome.result, status: "claimed", saved: true });
+          out.json({ ...printableSignIn(outcome.result, !!opts.showKey), status: "claimed" });
           if (!opts.json) {
             out.ok(`Approved. You have a seat in ${clean(outcome.result.workspace.name)}. Key saved (${keyPreview(outcome.result.apiKey)}).`);
             out.note("Next: topcal calendars connect   (prints a link to send your human)");
@@ -209,7 +247,7 @@ export function registerSignupCommands(program: Command): void {
           return;
         }
         if (!opts.wait || Date.now() >= deadline) {
-          out.json(outcome.result);
+          out.json(printablePending(outcome.result, !!opts.showKey));
           if (!opts.json) out.note(`Still waiting for ${clean(outcome.result.claimSentTo)} to approve.`);
           if (opts.wait) process.exit(2);
           return;

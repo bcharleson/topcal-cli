@@ -3,6 +3,7 @@ import type { Command } from "commander";
 import { loadConfig } from "../config.js";
 import { ApiClient } from "../http.js";
 import { openUrl } from "../open-url.js";
+import { clean } from "./public-booking.js";
 import { createOutput } from "../output.js";
 
 type CalendarRow = {
@@ -127,12 +128,12 @@ export async function runCalendarsConnect(opts: {
 
   if (minted.viaAgentSeat) {
     // A bot can't approve calendar access. Hand the link to the human.
-    out.ok(`Send this link to ${minted.targetUser.email} — only they can approve ${provider} access:`);
-    out.note(minted.installUrl);
-    out.note(minted.instructions);
+    out.ok(`Send this link to ${clean(minted.targetUser.email)} — only they can approve ${provider} access:`);
+    out.note(clean(minted.installUrl));
+    out.note(clean(minted.instructions));
   } else {
-    out.ok(`Connect ${provider} as ${minted.targetUser.email}`);
-    out.note(minted.installUrl);
+    out.ok(`Connect ${provider} as ${clean(minted.targetUser.email)}`);
+    out.note(clean(minted.installUrl));
     out.note("Human step: finish Google/Microsoft consent in the browser.");
     if (opts.open !== false) openUrl(minted.installUrl);
   }
