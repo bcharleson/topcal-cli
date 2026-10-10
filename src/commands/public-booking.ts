@@ -24,23 +24,57 @@ export interface PublicHandle {
   eventSlug?: string;
 }
 
+/** Handle segments are slugs: no dots-only, slashes, or encoded tricks. */
+const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
 /**
  * Accept `workspace/username[/event]` or a full booking URL
  * (`https://topcal.ai/tofu/brandon/intro?x=1`) and pull the handle out.
+ * A URL must be on a topcal host (or the configured API host): the handle is
+ * always booked against the configured API, so a foreign URL would book a
+ * different calendar than the one it appears to name.
  */
-export function parsePublicHandle(input: string): PublicHandle {
+export function parsePublicHandle(input: string, apiUrl?: string): PublicHandle {
   let path = input.trim();
   if (/^https?:\/\//i.test(path)) {
-    path = new URL(path).pathname;
+    const url = new URL(path);
+    if (!isTopcalHost(url.hostname, apiUrl)) {
+      throw new Error(
+        `Not a topcal booking URL (host ${url.hostname}). Use a topcal.ai link or workspace/username/event.`,
+      );
+    }
+    path = url.pathname;
   }
-  const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
-  if (parts.length < 2 || parts.length > 3) {
+  const parts = path.split("/").filter(Boolean);
+  if (parts.length < 2 || parts.length > 3 || !parts.every((p) => SEGMENT.test(p))) {
     throw new Error(
-      `Expected workspace/username[/event] or a booking URL, got: ${input}`,
+      `Expected workspace/username[/event] or a booking URL, got: ${clean(input)}`,
     );
   }
   const [workspace, username, eventSlug] = parts as [string, string, string?];
   return { workspace, username, ...(eventSlug ? { eventSlug } : {}) };
+}
+
+function isTopcalHost(hostname: string, apiUrl?: string): boolean {
+  const host = hostname.toLowerCase();
+  if (host === "topcal.ai" || host.endsWith(".topcal.ai")) return true;
+  if (apiUrl) {
+    try {
+      return host === new URL(apiUrl).hostname.toLowerCase();
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Strip terminal control characters (ANSI escapes etc.) from server-supplied
+ * text before printing it — calendar names and messages come from strangers.
+ */
+export function clean(text: unknown): string {
+  // eslint-disable-next-line no-control-regex
+  return String(text ?? "").replace(/[\u0000-\u001f\u007f-\u009f]/g, "");
 }
 
 function eventPath(handle: PublicHandle): string {
@@ -98,14 +132,14 @@ export function registerPublicBookingCommands(program: Command): void {
     .option("--json", "Output machine-readable JSON")
     .action(async (raw: string, opts: JsonOpt) => {
       const out = createOutput({ json: !!opts.json });
-      const h = parsePublicHandle(raw);
+      const h = parsePublicHandle(raw, apiUrl());
       const result = await makeClient().request<{
         eventTypes?: Array<{ slug: string; name: string; durationMinutes?: number }>;
       }>({ method: "GET", path: `/public/${enc(h.workspace)}/${enc(h.username)}`, skipAuth: true });
       out.json(result);
       if (!opts.json) {
         for (const et of result.eventTypes ?? []) {
-          out.note(`  ${h.workspace}/${h.username}/${et.slug} — ${et.name}`);
+          out.note(`  ${h.workspace}/${h.username}/${clean(et.slug)} — ${clean(et.name)}`);
         }
       }
     });
@@ -128,7 +162,7 @@ export function registerPublicBookingCommands(program: Command): void {
       const query = qs.toString() ? `?${qs}` : "";
       const result = await makeClient().request({
         method: "GET",
-        path: `${eventPath(parsePublicHandle(raw))}/slots${query}`,
+        path: `${eventPath(parsePublicHandle(raw, apiUrl()))}/slots${query}`,
         skipAuth: true,
       });
       out.json(result);
@@ -154,7 +188,7 @@ export function registerPublicBookingCommands(program: Command): void {
         message: string;
       }>({
         method: "POST",
-        path: `${eventPath(parsePublicHandle(raw))}/otp`,
+        path: `${eventPath(parsePublicHandle(raw, apiUrl()))}/otp`,
         skipAuth: true,
         body: {
           email: opts.email,
@@ -163,8 +197,8 @@ export function registerPublicBookingCommands(program: Command): void {
         },
       });
       out.json(result);
-      if (result.notice) out.warn(result.notice);
-      if (!opts.json) out.ok(result.message);
+      if (result.notice) out.warn(clean(result.notice));
+      if (!opts.json) out.ok(clean(result.message));
     });
 
   pub
@@ -191,7 +225,7 @@ export function registerPublicBookingCommands(program: Command): void {
         message: string;
       }>({
         method: "POST",
-        path: `${eventPath(parsePublicHandle(raw))}/book`,
+        path: `${eventPath(parsePublicHandle(raw, apiUrl()))}/book`,
         skipAuth: true,
         body: {
           startAt: opts.start,
@@ -209,18 +243,22 @@ export function registerPublicBookingCommands(program: Command): void {
       });
       out.json(result);
       if (!opts.json) {
-        out.ok(result.message);
+        out.ok(clean(result.message));
         out.kv([
-          ["booking", result.booking.id],
-          ["when", `${result.booking.startAt} → ${result.booking.endAt}`],
-          ["status", result.booking.status],
-          ...(result.booking.joinUrl ? [["join", result.booking.joinUrl] as [string, string]] : []),
+          ["booking", clean(result.booking.id)],
+          ["when", `${clean(result.booking.startAt)} → ${clean(result.booking.endAt)}`],
+          ["status", clean(result.booking.status)],
+          ...(result.booking.joinUrl ? [["join", clean(result.booking.joinUrl)] as [string, string]] : []),
         ]);
       }
     });
 }
 
+function apiUrl(): string {
+  return loadConfig().apiUrl;
+}
+
 function makeClient(): ApiClient {
   // Public plane: only the API origin matters — never send stored credentials.
-  return new ApiClient({ apiUrl: loadConfig().apiUrl });
+  return new ApiClient({ apiUrl: apiUrl() });
 }
