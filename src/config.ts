@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 export interface CliConfig {
   /** Base URL of the topcal API, e.g. `https://app.topcal.ai`. */
   apiUrl: string;
-  /** Workspace API key (`tofu_(live|test)_...`). Optional for `health` etc. */
+  /** Workspace API key (`topcal_(live|test)_...`; older keys start `tofu_`). Optional for `health` etc. */
   apiKey?: string | undefined;
   /**
    * Most-recently-issued agent intent JWT. Stored so `topcal user signup`
@@ -34,6 +34,9 @@ export interface CliConfig {
   /** Pending device-auth handshake (auth register --wait no). */
   pendingDeviceCode?: string | undefined;
   pendingUserCode?: string | undefined;
+  /** Headless signup in progress (signup start → verify → poll). */
+  pendingChallengeId?: string | undefined;
+  pendingClaimPollToken?: string | undefined;
 }
 
 const DEFAULT_API_URL = "https://app.topcal.ai";
@@ -83,6 +86,8 @@ export function loadConfig(): CliConfig {
     workspaceSlug: fileConfig.workspaceSlug,
     pendingDeviceCode: fileConfig.pendingDeviceCode,
     pendingUserCode: fileConfig.pendingUserCode,
+    pendingChallengeId: fileConfig.pendingChallengeId,
+    pendingClaimPollToken: fileConfig.pendingClaimPollToken,
   };
 
   if (
@@ -129,6 +134,14 @@ export function saveConfig(patch: Partial<CliConfig>): CliConfig {
       patch.pendingUserCode !== undefined
         ? patch.pendingUserCode || undefined
         : current.pendingUserCode,
+    pendingChallengeId:
+      patch.pendingChallengeId !== undefined
+        ? patch.pendingChallengeId || undefined
+        : current.pendingChallengeId,
+    pendingClaimPollToken:
+      patch.pendingClaimPollToken !== undefined
+        ? patch.pendingClaimPollToken || undefined
+        : current.pendingClaimPollToken,
   };
 
   const cleaned = Object.fromEntries(

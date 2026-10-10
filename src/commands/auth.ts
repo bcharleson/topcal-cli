@@ -85,7 +85,7 @@ export function registerAuthCommands(program: Command): void {
     .command("login")
     .description("Store API URL + workspace API key and verify connectivity.")
     .option("--url <url>", "Topcal API base URL")
-    .option("--api-key <key>", "Workspace API key (tofu_(live|test)_...)")
+    .option("--api-key <key>", "Workspace API key (topcal_(live|test)_...; older tofu_ keys still work)")
     .option("--json", "Output machine-readable JSON")
     .action(async (opts: LoginOptions) => {
       await runLogin(opts);
