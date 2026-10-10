@@ -21,8 +21,15 @@ export function registerCalendarCommands(program: Command): void {
 
   calendars
     .command("connect")
-    .description("Open browser OAuth to connect Google or Microsoft calendar.")
+    .description(
+      "Connect a Google or Microsoft calendar. Your own key opens the consent page. An agent seat prints a link to send your human — only they can approve it.",
+    )
     .option("--provider <provider>", "google | microsoft", "google")
+    .option(
+      "--for <email>",
+      "Agent seats only: the workspace member whose calendar to connect (default: the person who approved you)",
+    )
+    .option("--no-open", "Never open a browser; just print the link")
     .option("--wait", "Poll until a connection appears", true)
     .option("--no-wait", "Print the install URL and exit")
     .option("--timeout <seconds>", "Max seconds to wait", "300")
@@ -30,6 +37,8 @@ export function registerCalendarCommands(program: Command): void {
     .action(
       async (opts: {
         provider?: string;
+        for?: string;
+        open?: boolean;
         wait?: boolean;
         timeout?: string;
         json?: boolean;
@@ -76,6 +85,8 @@ export function registerCalendarCommands(program: Command): void {
 
 export async function runCalendarsConnect(opts: {
   provider?: string;
+  for?: string;
+  open?: boolean;
   wait?: boolean;
   timeout?: string;
   json?: boolean;
@@ -83,7 +94,7 @@ export async function runCalendarsConnect(opts: {
   const out = createOutput({ json: !!opts.json });
   const cfg = loadConfig();
   if (!cfg.apiKey) {
-    out.error("Not connected. Run: topcal setup   or   topcal auth register");
+    out.error("Not connected. Run: topcal signup start --email <inbox>   or   topcal auth register");
     process.exit(1);
   }
   const provider = (opts.provider ?? "google").toLowerCase();
@@ -107,16 +118,24 @@ export async function runCalendarsConnect(opts: {
     expiresAt: string;
     targetUser: { id: string; email: string };
     instructions: string;
+    viaAgentSeat?: boolean;
   }>({
     method: "POST",
     path: "/cli/calendars/connect",
-    body: { provider },
+    body: { provider, ...(opts.for ? { forEmail: opts.for } : {}) },
   });
 
-  out.ok(`Connect ${provider} as ${minted.targetUser.email}`);
-  out.note(minted.installUrl);
-  out.note("Human step: finish Google/Microsoft consent in the browser.");
-  openUrl(minted.installUrl);
+  if (minted.viaAgentSeat) {
+    // A bot can't approve calendar access. Hand the link to the human.
+    out.ok(`Send this link to ${minted.targetUser.email} — only they can approve ${provider} access:`);
+    out.note(minted.installUrl);
+    out.note(minted.instructions);
+  } else {
+    out.ok(`Connect ${provider} as ${minted.targetUser.email}`);
+    out.note(minted.installUrl);
+    out.note("Human step: finish Google/Microsoft consent in the browser.");
+    if (opts.open !== false) openUrl(minted.installUrl);
+  }
 
   if (opts.wait === false) {
     out.json({

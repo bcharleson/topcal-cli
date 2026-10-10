@@ -30,6 +30,32 @@ topcal tools call get_workspace --json
 
 Credentials: `~/.topcal/config.json` (mode `0600`). Override with `TOPCAL_API_URL`, `TOPCAL_API_KEY`, `TOPCAL_AGENT_INTENT`.
 
+## Headless signup (no browser)
+
+A person, with their own email:
+
+```bash
+topcal signup start --email you@company.com
+topcal signup verify --code 123456        # saves your API key
+topcal calendars connect                  # opens Google / Microsoft consent
+```
+
+An AI agent with its own inbox (for example `mail.grokbot.com`) names the
+person it works for. That person gets an email, reviews the request and
+approves; they own the workspace and the agent gets a free seat:
+
+```bash
+topcal signup start --email bot@mail.grokbot.com --human-email you@company.com --agent-name "WALL-E"
+topcal signup verify --code 123456        # code from the agent's inbox
+topcal signup poll --wait                 # saves the seat key once approved
+topcal calendars connect                  # prints a link to send the human
+topcal calendars status                   # shows the human's calendars
+```
+
+Only the human can approve calendar access. Billing is per connected
+calendar; agent seats are free. To sign in again later, run `signup start`
+and `verify` with the agent's inbox alone: the seat stays, the key rotates.
+
 ## Commands
 
 | Command | Purpose |

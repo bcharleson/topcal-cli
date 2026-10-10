@@ -11,6 +11,7 @@ import { registerMcpCommand } from "./commands/mcp.js";
 import { registerOpenApiCommand } from "./commands/openapi.js";
 import { registerPublicBookingCommands } from "./commands/public-booking.js";
 import { registerSetupCommand } from "./commands/setup.js";
+import { registerSignupCommands } from "./commands/signup.js";
 import { registerToolsCommands } from "./commands/tools.js";
 import { registerUserCommands } from "./commands/user.js";
 import { TopcalApiError } from "./http.js";
@@ -44,6 +45,7 @@ program
 
 registerSetupCommand(program);
 registerAuthCommands(program);
+registerSignupCommands(program);
 registerCalendarCommands(program);
 registerToolsCommands(program);
 registerOpenApiCommand(program);

@@ -130,4 +130,17 @@ describe("CLI config store", () => {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     expect(parsed).toEqual({ apiUrl: "https://book.example.com" } satisfies Partial<CliConfig>);
   });
+
+  it("round-trips a headless signup in progress and clears it when done", () => {
+    saveConfig({ pendingChallengeId: "chal-1" });
+    expect(loadConfig().pendingChallengeId).toBe("chal-1");
+
+    saveConfig({ pendingChallengeId: "", pendingClaimPollToken: "poll-1" });
+    expect(loadConfig().pendingChallengeId).toBeUndefined();
+    expect(loadConfig().pendingClaimPollToken).toBe("poll-1");
+
+    saveConfig({ apiKey: "topcal_test_x", pendingClaimPollToken: "" });
+    expect(loadConfig().pendingClaimPollToken).toBeUndefined();
+    expect(loadConfig().apiKey).toBe("topcal_test_x");
+  });
 });
